@@ -1,109 +1,139 @@
-# Service Template
+# Achievement Service
 
-Стандартный шаблон проекта на SpringBoot
+Сервис достижений для платформы CorporationX. Он хранит каталог достижений,
+выданные пользователям достижения и текущий прогресс пользователя по каждому
+достижению.
 
-# Использованные технологии
+## Реализованный функционал
 
-* [Spring Boot](https://spring.io/projects/spring-boot) – как основной фрэймворк
-* [PostgreSQL](https://www.postgresql.org/) – как основная реляционная база данных
-* [Redis](https://redis.io/) – как кэш и очередь сообщений через pub/sub
-* [testcontainers](https://testcontainers.com/) – для изолированного тестирования с базой данных
-* [Liquibase](https://www.liquibase.org/) – для ведения миграций схемы БД
-* [Gradle](https://gradle.org/) – как система сборки приложения
-* [Lombok](https://projectlombok.org/) – для удобной работы с POJO классами
-* [MapStruct](https://mapstruct.org/) – для удобного маппинга между POJO классами
+- хранение достижений с названием, описанием, редкостью и количеством баллов;
+- поддержка уровней редкости: `COMMON`, `UNCOMMON`, `RARE`, `EPIC`,
+  `LEGENDARY`;
+- хранение связи пользователя с полученным достижением;
+- хранение и увеличение текущего прогресса пользователя;
+- поиск прогресса и полученных достижений по `userId`;
+- проверка, получал ли пользователь конкретное достижение;
+- автоматическое создание записи прогресса при необходимости;
+- передача идентификатора пользователя через обязательный HTTP-заголовок
+  `x-user-id`;
+- передача `x-user-id` во внутренние Feign-запросы;
+- применение Liquibase-миграций при запуске приложения.
 
-# База данных
+REST-контроллеры в текущей версии не добавлены: сервис предоставляет
+подготовленный слой хранения и интеграционную инфраструктуру для дальнейшего
+подключения обработчиков событий и API.
 
-* База поднимается в отдельном сервисе [infra](../infra)
-* Redis поднимается в единственном инстансе тоже в [infra](../infra)
-* Liquibase сам накатывает нужные миграции на голый PostgreSql при старте приложения
-* В тестах используется [testcontainers](https://testcontainers.com/), в котором тоже запускается отдельный инстанс
-  postgres
-* В коде продемонстрирована работа как с JdbcTemplate, так и с JPA (Hibernate)
+## Технологии
 
-# Как начать разработку начиная с шаблона?
+- Java 17;
+- Spring Boot 3;
+- Spring Data JPA/Hibernate;
+- PostgreSQL;
+- Redis;
+- Spring Cloud OpenFeign;
+- Liquibase;
+- Gradle;
+- Testcontainers, JUnit 5 и AssertJ.
 
-1. Сначала нужно склонировать этот репозиторий
+## Требования
 
-```shell
-git clone https://github.com/FAANG-School/ServiceTemplate
+- JDK 17 или новее;
+- PostgreSQL 12+;
+- Redis 6+;
+- Docker (для контейнерного запуска).
+
+Приложение использует базу PostgreSQL и ожидает, что таблица `users` уже
+существует в этой базе: миграции сервиса создают внешние ключи на неё.
+
+## Конфигурация
+
+Основные параметры задаются переменными окружения:
+
+| Переменная | По умолчанию | Назначение |
+|---|---:|---|
+| `DB_HOST` | `localhost` | хост PostgreSQL |
+| `DB_PORT` | `5432` | порт PostgreSQL |
+| `DB_NAME` | `postgres` | имя базы данных |
+| `DB_USERNAME` | `user` | пользователь PostgreSQL |
+| `DB_PASSWORD` | `password` | пароль PostgreSQL |
+| `REDIS_HOST` | `localhost` | хост Redis |
+| `REDIS_PORT` | `6379` | порт Redis |
+| `PROJECT_SERVICE_HOST` | `localhost` | хост project-service |
+| `PROJECT_SERVICE_PORT` | `8082` | порт project-service |
+
+Порт приложения: `8085`.
+
+## Локальный запуск
+
+Соберите проект из корневой директории:
+
+```bash
+./gradlew clean build
 ```
 
-2. Далее удаляем служебную директорию для git
+В Windows используйте:
 
-```shell
-# Переходим в корневую директорию проекта
-cd ServiceTemplate
-rm -rf .git
+```powershell
+.\gradlew.bat clean build
 ```
 
-3. Далее нужно создать совершенно пустой репозиторий в github/gitlab
+Запустите приложение:
 
-4. Создаём новый репозиторий локально и коммитим изменения
-
-```shell
-git init
-git remote add origin <link_to_repo>
-git add .
-git commit -m "<msg>"
+```bash
+java -jar build/libs/service.jar
 ```
 
-Готово, можно начинать работу!
+Перед запуском убедитесь, что PostgreSQL и Redis доступны по адресам из
+конфигурации. При старте Liquibase автоматически применит миграции из
+`src/main/resources/db/changelog`.
 
-# Как запустить локально?
+Для запуска тестов:
 
-Сначала нужно развернуть базу данных из директории [infra](../infra)
-
-Далее собрать gradle проект
-
-```shell
-# Нужно запустить из корневой директории, где лежит build.gradle.kts
-gradle build
+```bash
+./gradlew test
 ```
 
-Запустить jar'ник
+## Запуск в Docker
 
-```shell
-java -jar build/libs/ServiceTemplate-1.0.jar
+Сначала соберите jar-файл:
+
+```bash
+./gradlew bootJar
 ```
 
-Но легче всё это делать через IDE
+Создайте Docker-образ:
 
-# Код
+```bash
+docker build -t achievement-service .
+```
 
-RESTful приложения калькулятор с единственным endpoint'ом, который принимает 2 числа и выдает результаты их сложения,
-вычитаяни, умножения и деления
+Запустите контейнер в Docker-сети, где доступны PostgreSQL и Redis:
 
-* Обычная трёхслойная
-  архитектура – [Controller](src/main/java/faang/school/achievement/controller), [Service](src/main/java/faang/school/achievement/service), [Repository](src/main/java/faang/school/achievement/repository)
-* Слой Repository реализован и на jdbcTemplate, и на JPA (Hibernate)
-* Написан [GlobalExceptionHandler](src/main/java/faang/school/achievement/controller/GlobalExceptionHandler.java)
-  который умеет возвращать ошибки в формате `{"code":"CODE", "message": "message"}`
-* Используется TTL кэширование вычислений
-  в [CalculationTtlCacheService](src/main/java/faang/school/achievement/service/cache/CalculationTtlCacheService.java)
-* Реализован простой Messaging через [Redis pub/sub](https://redis.io/docs/manual/pubsub/)
-  * [Конфигурация](src/main/java/faang/school/achievement/config/RedisConfig.java) –
-    сетапится [RedisTemplate](https://docs.spring.io/spring-data/redis/docs/current/api/org/springframework/data/redis/core/RedisTemplate.html) –
-    класс, для удобной работы с Redis силами Spring
-  * [Отправитель](src/main/java/faang/school/achievement/service/messaging/RedisCalculationPublisher.java) – генерит
-    рандомные запросы и отправляет в очередь
-  * [Получатель](src/main/java/faang/school/achievement/service/messaging/RedisCalculationSubscriber.java) –
-    получает запросы и отправляет задачи асинхронно выполняться
-    в [воркер](src/main/java/faang/school/achievement/service/worker/CalculationWorker.java)
+```bash
+docker run --name achievement-service \
+  --network <network-name> \
+  -p 8085:8085 \
+  -e DB_HOST=<postgres-container> \
+  -e DB_PORT=5432 \
+  -e DB_NAME=<database-name> \
+  -e DB_USERNAME=<database-user> \
+  -e DB_PASSWORD=<database-password> \
+  -e REDIS_HOST=<redis-container> \
+  -e REDIS_PORT=6379 \
+  achievement-service
+```
 
-# Тесты
+Если зависимости опубликованы на хост-машине, контейнер можно запустить с
+параметрами `-e DB_HOST=host.docker.internal` и
+`-e REDIS_HOST=host.docker.internal`.
 
-Написаны только для единственного REST endpoint'а
-* SpringBootTest
-* MockMvc
-* Testcontainers
-* AssertJ
-* JUnit5
-* Parameterized tests
+Dockerfile открывает порт `8085` и запускает собранный файл
+`build/libs/service.jar`.
 
-# TODO
+## Структура проекта
 
-* Dockerfile, который подключается к сети запущенной postgres в docker-compose
-* Redis connectivity
-* ...
+- `model` — JPA-сущности достижений, прогресса и полученных достижений;
+- `repository` — репозитории для работы с PostgreSQL;
+- `config/context` — получение и хранение текущего `userId`;
+- `client` — Feign-конфигурация для внутренних вызовов;
+- `src/main/resources/db/changelog` — Liquibase-миграции и начальные данные.
